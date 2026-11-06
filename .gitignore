@@ -1,0 +1,36 @@
+db/private-settings.json
+db/private/
+db/tracker.db
+db/tracker.db-*
+docs/samples/*.html
+__pycache__/
+*.pyc
+*.log
+.pytest_cache/
+node_modules/
+coverage/
+
+# 私人运行内容与导出文件不进入公开源码
+/db/*
+!/db/schema.sql
+/docs/
+/outputs/
+/data/
+.env
+.env.*
+*.sqlite
+*.sqlite3
+*.db
+*.db-*
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.docx
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# 唯一允许分发的图片是经审阅的通用介绍图，不是账号截图
+!/assets/overview.png

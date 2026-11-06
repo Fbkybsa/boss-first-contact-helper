@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "BOSS 首次接触自动沟通",
+  "version": "0.7.9",
+  "description": "投递页保存沟通岗位快照并自动留在本页；消息页发现新会话后检查首次接触并发送图片和话术。",
+  "permissions": ["storage", "alarms"],
+  "host_permissions": ["http://127.0.0.1:8787/*"],
+  "background": { "service_worker": "background_minimal.js" },
+  "action": {
+    "default_title": "首次接触自动沟通",
+    "default_popup": "popup_minimal.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.zhipin.com/web/geek/chat*"],
+      "js": ["first_contact_core.js", "first_contact.js"],
+      "css": ["first_contact.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.zhipin.com/web/geek/*", "https://www.zhipin.com/job_detail/*"],
+      "js": ["job_snapshot_core.js", "stay_on_page_core.js", "stay_on_page.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

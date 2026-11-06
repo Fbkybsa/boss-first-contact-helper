@@ -1,0 +1,222 @@
+{
+  "_说明": [
+    "本文件是采集器的唯一选择器配置。选择器来自 docs/samples/ 保存的真实页面 HTML 核实（见 docs/phase1-checklist.md）。",
+    "BOSS 直聘桌面端 class 为语义化命名（salary/info-job/company-name 等），相对稳定；",
+    "但平台改版仍可能使选择器失效——失效表现为字段留空，不会写入错误数据。"
+  ],
+  "_字段约定": [
+    "job_key, title, company_name, company_size, industry, city, salary_raw, url,",
+    "stage_text, viewed_text, applied_time_text, resume_exchange_time_text, interview_time_text, last_message_time_text, last_reply_time_text,",
+    "hr.name, hr.title, hr.activity_text（hr.* 会自动组装为嵌套 hr 对象）"
+  ],
+  "_字段规则": {
+    "selector": "item 内的 CSS 选择器；留空表示用 item 节点本身的文本",
+    "attr": "text（默认）或属性名，如 href",
+    "regex": "可选，对取到的文本做正则提取，取第1个捕获组（无捕获组取整体）",
+    "from": "url 表示从页面地址提取（配合 regex），用于拿 job_detail 页的职位ID",
+    "when/unless": "仅当 item 内存在/不存在指定选择器时提取；when_any/unless_any 支持选择器或带正则的条件数组",
+    "pick": "设为 last 时取最后一个匹配节点",
+    "value": "固定值，适合用当前分类为每条记录补充阶段或来源",
+    "absolute_url": "将页面内相对链接补成完整网址",
+    "required": "回归测试是否要求非空；false 表示页面可能不显示"
+  },
+  "_待补字段": [
+    {
+      "page_type": "投递状态页或含明确投递消息的会话",
+      "required_sample": "能逐条对应职位并显示‘已投递’和投递时间的页面 HTML",
+      "minimum_fields": ["job_key或职位链接", "title", "stage_text", "applied_time_text"]
+    }
+  ],
+  "pause_indicators": [
+    "[class*=security-verify]",
+    "[class*=captcha]",
+    { "titleContains": "404" },
+    { "titleContains": "验证" }
+  ],
+  "_pause说明": "出现安全验证/验证码组件或 403 拦截页（title 为 404 Not Found）时暂停采集，并向服务端上报暂停原因",
+  "pages": [
+    {
+      "page_type": "职位详情",
+      "url_pattern": "zhipin\\.com/job_detail/",
+      "item_selector": "#main",
+      "sample_hint": "sample-job-detail",
+      "application": false,
+      "_item说明": "单记录页面：公司区(.job-detail-company)与HR区(.job-boss-info)不在 .job-primary 内部，从 #main 根查询各字段均全局唯一",
+      "fields": {
+        "job_key": { "from": "url", "regex": "job_detail/([^.?]+)\\.html" },
+        "title": { "selector": ".name h1", "attr": "title" },
+        "salary_raw": { "selector": ".name .salary" },
+        "city": { "selector": ".text-city" },
+        "company_name": { "selector": ".sider-company a[ka=job-detail-company_custompage]" },
+        "company_size": { "selector": ".sider-company p:has(> i.icon-scale)" },
+        "industry": { "selector": ".sider-company p:has(> i.icon-industry) a" },
+        "url": { "from": "url" },
+        "jd_text": { "selector": ".job-detail-section .job-sec-text" },
+        "hr.name": { "selector": ".job-boss-info h2.name", "regex": "^([^\\s]+)" },
+        "hr.title": { "selector": ".job-boss-info .boss-info-attr", "regex": "[··](.+)$" },
+        "hr.activity_text": { "selector": ".job-boss-info .boss-online-tag" }
+      },
+      "_核实记录": "2026-09-14 基于 docs/samples/sample-job-detail.html 核实；hr.activity_text 仅在线时有『在线』标签，离线表述（今日活跃等）在沟通列表页核实"
+    },
+    {
+      "page_type": "沟通列表",
+      "url_pattern": "zhipin\\.com/web/geek/chat",
+      "item_selector": ".user-list-content ul[role=group] > li[role=listitem]",
+      "sample_hint": "20260915120206",
+      "sample_hints": ["20260915120206", "20260920112821", "20260920112831"],
+      "application": true,
+      "_item说明": "每个可见会话一条。列表没有职位ID和职位名，以公司+HR姓名作保守会话指纹；已读/送达是消息状态，不映射为简历查看状态。",
+      "fields": {
+        "company_name": { "selector": ".name-box > span:nth-of-type(2)" },
+        "hr.name": { "selector": ".name-text" },
+        "hr.title": { "selector": ".name-box > span:nth-of-type(3)" },
+        "last_message_time_text": {
+          "selector": ".time",
+          "when_any": [
+            ".message-status",
+            { "selector": ".last-msg-text", "regex": "(?:\\.pdf$|附件简历.*已发送给(?:Boss|对方))" }
+          ]
+        },
+        "last_reply_time_text": {
+          "selector": ".time",
+          "unless_any": [
+            ".message-status",
+            { "selector": ".last-msg-text", "regex": "(?:\\.pdf$|附件简历.*已发送给(?:Boss|对方))" }
+          ],
+          "required": false
+        },
+        "stage_text": {
+          "selector": ".last-msg-text",
+          "regex": "(不(?:完全)?匹配|不合适|已招到)",
+          "required": false
+        },
+        "resume_exchange_time_text": {
+          "selector": ".time",
+          "when_any": [
+            { "selector": ".last-msg-text", "regex": "(?:\\.pdf$|附件简历.*已发送给(?:Boss|对方))" }
+          ],
+          "required": false
+        }
+      },
+      "_核实记录": "2026-09-20 基于 20260915120206、20260920112821、20260920112831 三份消息页样本；后两份分别含40和42条可见会话"
+    },
+    {
+      "page_type": "聊天会话",
+      "url_pattern": "zhipin\\.com/web/geek/chat",
+      "item_selector": ".chat-conversation",
+      "sample_hint": "20260915120206",
+      "application": true,
+      "_item说明": "当前打开会话补全职位、薪酬和城市；首次接触脚本兼容新版 company-name/name-text/job-title 等类名，并可从左侧当前选中列表项补全公司+HR姓名指纹。",
+      "fields": {
+        "title": { "selector": ".chat-position-content .position-name" },
+        "salary_raw": { "selector": ".chat-position-content .salary" },
+        "city": { "selector": ".chat-position-content .city" },
+        "company_name": { "selector": ".top-info-content .base-info > span:not(.base-title)" },
+        "hr.name": { "selector": ".top-info-content .name-text" },
+        "hr.title": { "selector": ".top-info-content .base-title" },
+        "last_message_time_text": { "selector": ".message-item.item-myself .item-time .time", "pick": "last", "required": false },
+        "last_reply_time_text": { "selector": ".message-item.item-friend .item-time .time", "pick": "last", "required": false },
+        "stage_text": { "selector": ".message-item.item-friend .text-content", "pick": "last", "regex": "(不(?:完全)?匹配|不合适|已招到)", "required": false }
+      },
+      "_核实记录": "2026-11-06 保留 20260915120206 旧版样本主选择器；新增消息页异步加载等待及左侧选中会话兜底，真实新版页面仍待复核"
+    },
+    {
+      "page_type": "求职进展-沟通过",
+      "url_pattern": "zhipin\\.com/web/geek/",
+      "page_when": { "selector": ".job-tab span.current", "regex": "^沟通过$" },
+      "item_selector": ".user-jobs-ul > li.item-boss",
+      "sample_hint": "20260920112931",
+      "application": true,
+      "summary_fields": {
+        "reported_total": { "selector": ".job-tab-count", "regex": "累计沟通职位数量\\s*(\\d+)" }
+      },
+      "fields": {
+        "job_key": { "selector": "a.name[href*='/job_detail/']", "attr": "href", "regex": "job_detail/([^.?]+)\\.html" },
+        "title": { "selector": ".job-name-text" },
+        "company_name": { "selector": ".company-info b" },
+        "company_size": { "selector": ".company-info p.gray span:last-child" },
+        "industry": { "selector": ".company-info p.gray span:first-child" },
+        "city": { "selector": ".job-name .location em" },
+        "salary_raw": { "selector": ".job-info > p.gray", "regex": "(\\d+(?:\\.\\d+)?\\s*[-–~—]\\s*\\d+(?:\\.\\d+)?\\s*(?:[Kk]|万|W)(?:[·•xX×]\\s*\\d+\\s*薪)?)" },
+        "url": { "selector": "a.name[href*='/job_detail/']", "attr": "href", "absolute_url": true },
+        "hr.name": { "selector": ".info-header h3.name > span:first-child" },
+        "hr.title": { "selector": ".info-header h3.name > span.gray", "required": false },
+        "stage_text": { "value": "已沟通" },
+        "record_source": { "value": "BOSS求职进展-沟通过" }
+      },
+      "_核实记录": "2026-09-20 样本含15条当前页记录，页面显示累计沟通职位665；只记为沟通，不计入正式投递"
+    },
+    {
+      "page_type": "求职进展-已投递",
+      "url_pattern": "zhipin\\.com/web/geek/",
+      "page_when": { "selector": ".job-tab span.current", "regex": "^已投递$" },
+      "item_selector": ".user-jobs-ul > li.item-boss",
+      "sample_hint": "20260920112938",
+      "application": true,
+      "summary_fields": {
+        "reported_total": { "selector": ".job-tab-count", "regex": "累计投递简历数量\\s*(\\d+)" }
+      },
+      "fields": {
+        "job_key": { "selector": "a.name[href*='/job_detail/']", "attr": "href", "regex": "job_detail/([^.?]+)\\.html" },
+        "title": { "selector": ".job-name-text" },
+        "company_name": { "selector": ".company-info b" },
+        "company_size": { "selector": ".company-info p.gray span:last-child" },
+        "industry": { "selector": ".company-info p.gray span:first-child" },
+        "city": { "selector": ".job-name .location em" },
+        "salary_raw": { "selector": ".job-info > p.gray", "regex": "(\\d+(?:\\.\\d+)?\\s*[-–~—]\\s*\\d+(?:\\.\\d+)?\\s*(?:[Kk]|万|W)(?:[·•xX×]\\s*\\d+\\s*薪)?)" },
+        "url": { "selector": "a.name[href*='/job_detail/']", "attr": "href", "absolute_url": true },
+        "hr.name": { "selector": ".info-header h3.name > span:first-child" },
+        "hr.title": { "selector": ".info-header h3.name > span.gray", "required": false },
+        "stage_text": { "value": "已投递" },
+        "record_source": { "value": "BOSS求职进展-已投递" }
+      },
+      "_核实记录": "2026-09-20 样本含15条当前页记录，页面显示累计投递简历42；页面不提供逐条投递日期，因此保留为时间未知"
+    },
+    {
+      "page_type": "求职进展-面试",
+      "url_pattern": "zhipin\\.com/web/geek/",
+      "page_when": { "selector": ".job-tab span.current", "regex": "^面试(?:\\s*\\d+)?$" },
+      "item_selector": ".user-jobs-ul > li.item-boss",
+      "sample_hint": "20260920112945",
+      "application": true,
+      "fields": {
+        "job_key": { "selector": "a.name[href*='/job_detail/']", "attr": "href", "regex": "job_detail/([^.?]+)\\.html" },
+        "title": { "selector": ".job-name-text" },
+        "company_name": { "selector": ".info-company-name-row-2" },
+        "company_size": { "selector": ".info-company-desc-row-2", "regex": "·\\s*([^·\\]]+)\\s*\\]$" },
+        "industry": { "selector": ".info-company-desc-row-2", "regex": "^\\[\\s*([^·\\]]+)" },
+        "city": { "selector": ".interview-info-row-2", "regex": "面试地点：\\s*([^市]+市)", "required": false },
+        "salary_raw": { "selector": ".info-salary-row-1" },
+        "url": { "selector": "a.name[href*='/job_detail/']", "attr": "href", "absolute_url": true },
+        "hr.name": { "selector": ".info-header h3.name > span:first-child" },
+        "hr.title": { "selector": ".info-header h3.name > span.gray", "required": false },
+        "stage_text": { "value": "面试" },
+        "interview_time_text": { "selector": ".interview-time-prefix", "regex": "(\\d{4}\\.\\d{1,2}\\.\\d{1,2}\\s+\\d{1,2}:\\d{2})" },
+        "record_source": { "value": "BOSS求职进展-面试" }
+      },
+      "_核实记录": "2026-09-20 样本含1条面试记录，可提取面试时间、职位、公司和地点"
+    },
+    {
+      "page_type": "求职进展-感兴趣",
+      "url_pattern": "zhipin\\.com/web/geek/",
+      "page_when": { "selector": ".job-tab span.current", "regex": "^感兴趣(?:\\s*\\d+)?$" },
+      "item_selector": ".user-jobs-ul > li.item-boss",
+      "sample_hint": "20260920112955",
+      "application": false,
+      "fields": {
+        "job_key": { "selector": "a.name[href*='/job_detail/']", "attr": "href", "regex": "job_detail/([^.?]+)\\.html" },
+        "title": { "selector": ".job-name-text" },
+        "company_name": { "selector": ".company-info b" },
+        "company_size": { "selector": ".company-info p.gray span:last-child" },
+        "industry": { "selector": ".company-info p.gray span:first-child" },
+        "city": { "selector": ".job-name .location em" },
+        "salary_raw": { "selector": ".job-info > p.gray", "regex": "(\\d+(?:\\.\\d+)?\\s*[-–~—]\\s*\\d+(?:\\.\\d+)?\\s*(?:[Kk]|万|W)(?:[·•xX×]\\s*\\d+\\s*薪)?)" },
+        "url": { "selector": "a.name[href*='/job_detail/']", "attr": "href", "absolute_url": true },
+        "hr.name": { "selector": ".info-header h3.name > span:first-child" },
+        "hr.title": { "selector": ".info-header h3.name > span.gray", "required": false },
+        "record_source": { "value": "BOSS求职进展-感兴趣" }
+      },
+      "_核实记录": "2026-09-20 样本含15条收藏记录；其中既有立即沟通也有继续沟通，固定不创建投递记录"
+    }
+  ]
+}

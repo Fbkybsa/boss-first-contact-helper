@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>首次接触一键沟通设置</title>
+  <link rel="stylesheet" href="first-contact-settings.css">
+</head>
+<body>
+  <main>
+    <h1>首次接触一键沟通设置</h1>
+    <p>配置消息页要发送的两项内容。你仍在 BOSS 页面手动筛选岗位、打招呼并打开会话。</p>
+    <form id="settings-form">
+      <label for="resume">简历图片（JPG 或 PNG，不超过 8 MB）</label>
+      <input id="resume" type="file" accept="image/jpeg,image/png">
+      <small id="resume-status">正在读取现有图片…</small>
+      <label for="message">图片后的话术</label>
+      <textarea id="message" rows="6" maxlength="300" required placeholder="简历图片确认发送后，自动发送这段文字"></textarea>
+      <button type="submit">保存</button>
+    </form>
+    <p id="status" role="status"></p>
+  </main>
+  <script src="first-contact-settings.js"></script>
+</body>
+</html>

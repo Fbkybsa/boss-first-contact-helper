@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BOSS直聘投递追踪</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div>
+    <h1>投递追踪</h1>
+    <span id="last-sync" class="muted"></span>
+  </div>
+  <div class="actions">
+    <button id="btn-settings" class="btn btn-outline">图片与文字设置</button>
+    <button id="btn-sync" class="btn">立即同步</button>
+    <a id="btn-export" class="btn btn-outline" href="/api/export.csv">导出 CSV</a>
+  </div>
+</header>
+
+<section id="cards" class="cards"></section>
+
+<section class="filters">
+  <select id="f-period" aria-label="统计时间范围">
+    <option value="today">今天</option>
+    <option value="7d">近7天</option>
+    <option value="month">本月</option>
+    <option value="all">全部时间</option>
+    <option value="custom">自定义日期</option>
+  </select>
+  <input id="f-q" type="search" placeholder="搜索公司 / 岗位 / 行业 / 备注">
+  <select id="f-stage"></select>
+  <select id="f-viewed"></select>
+  <select id="f-industry"></select>
+  <select id="f-size"></select>
+  <label class="range">投递日期 <input id="f-from" type="date"> ~ <input id="f-to" type="date"></label>
+  <input id="f-salary" type="number" min="0" placeholder="最低薪酬(K)">
+  <select id="f-sort">
+    <option value="applied_at">按投递时间</option>
+    <option value="last_change_at">按最近变化</option>
+    <option value="updated_at">按更新时间</option>
+    <option value="salary_max_k">按薪酬上限</option>
+    <option value="company_name">按公司</option>
+  </select>
+  <select id="f-order">
+    <option value="desc">降序</option>
+    <option value="asc">升序</option>
+  </select>
+  <button id="btn-reset" class="btn btn-ghost">重置</button>
+</section>
+
+<p id="table-meta" class="muted table-meta"></p>
+
+<div class="table-wrap">
+<table id="tbl">
+  <thead>
+    <tr>
+      <th>公司 / 岗位</th><th>薪酬</th><th>阶段</th><th>查看</th>
+      <th>投递时间</th><th>最近变化</th><th>HR活跃</th><th>回复耗时</th><th>备注</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+</div>
+<div id="empty" class="empty" hidden>
+  当前时间范围内暂无投递记录。请打开 BOSS 沟通列表完成首次采集，或切换时间范围。
+</div>
+
+<div id="drawer-mask" hidden></div>
+<aside id="drawer" hidden>
+  <div class="drawer-head">
+    <h2 id="d-title">投递详情</h2>
+    <button id="d-close" class="btn btn-ghost">关闭</button>
+  </div>
+  <div id="d-info" class="d-info"></div>
+  <form id="d-form" class="d-form">
+    <h3>人工修正</h3>
+    <label>招聘阶段 <select id="d-stage"></select></label>
+    <label>查看状态 <select id="d-viewed"></select></label>
+    <label>投递时间 <input id="d-applied" type="datetime-local" step="60"></label>
+    <label>面试时间 <input id="d-interview" type="datetime-local" step="60"></label>
+    <label>备注 <textarea id="d-note" rows="2"></textarea></label>
+    <label class="check"><input id="d-locked" type="checkbox"> 人工保护（开启后页面数据不再自动更新此记录）</label>
+    <div class="form-actions">
+      <span class="muted" id="d-hint">修正阶段/查看状态会自动开启保护</span>
+      <button type="submit" class="btn">保存</button>
+    </div>
+  </form>
+  <div class="d-events">
+    <h3>状态时间线</h3>
+    <div id="d-events"></div>
+  </div>
+</aside>
+
+<div id="settings-mask" hidden></div>
+<aside id="settings-panel" hidden>
+  <div class="drawer-head">
+    <h2>图片与文字设置</h2>
+    <button id="settings-close" class="btn btn-ghost" type="button">关闭</button>
+  </div>
+  <form id="settings-form" class="d-form settings-form">
+    <label>个人优势话术
+      <textarea id="s-advantage" rows="5" maxlength="300" placeholder="图片发送成功后发送，最多300字" required></textarea>
+    </label>
+    <label>简历图片
+      <input id="s-resume" type="file" accept="image/jpeg,image/png">
+    </label>
+    <div id="s-resume-status" class="muted"></div>
+    <div class="settings-warning">请保持 BOSS 的自动打招呼语<b>开启</b>（关闭后会话不会建立，就无法发送消息）。点击"立即沟通"后弹出选择时选<b>"留在当前页"</b>，请提前打开电脑消息页，工具将在消息页依次发送：简历图片 → 个人优势。</div>
+    <div class="form-actions">
+      <button type="submit" class="btn">保存设置</button>
+    </div>
+  </form>
+</aside>
+
+<div id="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

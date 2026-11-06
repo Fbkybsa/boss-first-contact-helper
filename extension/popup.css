@@ -1,0 +1,16 @@
+body {
+  width: 280px; margin: 0; padding: 14px;
+  color: #26303a; font: 13px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+strong { font-size: 15px; }
+p { margin: 7px 0 12px; color: #68727d; }
+button {
+  width: 100%; padding: 8px 12px; border: 0; border-radius: 6px;
+  background: #316ef3; color: white; cursor: pointer;
+}
+button + button { margin-top: 8px; }
+button.secondary { background: #fff; color: #316ef3; border: 1px solid #316ef3; }
+button:disabled { opacity: .55; cursor: default; }
+#status { margin-top: 9px; min-height: 20px; overflow-wrap: anywhere; }
+.error { color: #c43838; }
+.ok { color: #1e8e46; }

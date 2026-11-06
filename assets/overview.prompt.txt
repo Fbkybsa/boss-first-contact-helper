@@ -1,0 +1,10 @@
+Use case: ads-marketing
+Asset type: polished illustrated overview banner for a Chinese open-source project's GitHub README, landscape approximately 16:9, 1792x1024.
+Primary request: Introduce a BOSS job-seeker first-contact helper, using a beautifully crafted editorial software illustration with a three-step workflow. Tasteful warm ivory background, deep teal typography, turquoise accents, soft orange highlights, plenty of whitespace, subtle grain, clean crisp readable Chinese typography. Make it feel professional, welcoming, and visually rich rather than a bare diagram.
+At top: large exact title "BOSS 首次接触助手", smaller subtitle "你来选岗位，重复操作交给工具".
+Below: three balanced rounded panels connected by simple arrows, numbered 01, 02, 03.
+Panel 01 exact heading "自己筛选", exact subtext "网页或手机点击沟通". Illustration: a phone and laptop displaying abstract job cards with neutral grey placeholder lines.
+Panel 02 exact heading "自动补发", exact subtext "图片简历 + 个人优势". Illustration: a desktop chat window with two outgoing bubbles, one containing an abstract document pictogram, one neutral short placeholder lines. Include a small exact label "电脑消息页保持在线".
+Panel 03 exact heading "本地记录", exact subtext "网页投递保存 JD 与岗位信息". Illustration: an elegant local folder and generic tabular rows with small document icons, a lock suggesting local storage.
+Footer exact text "网页双页面 · 手机沟通 + 电脑补发 · 数据保存在本地".
+Constraints: ALL UI is imaginary and generic. NO real people, names, faces, avatars, phone numbers, email addresses, resumes, job descriptions, recruiter information, companies, actual screenshots, salaries, QR codes, keys, account IDs or URLs. No actual BOSS logo, no claim of official affiliation. No scoring or AI evaluation features, no claims that mobile applications automatically record full JD. Do not add text beyond the specified Chinese copy and panel numbers. Opaque background.
