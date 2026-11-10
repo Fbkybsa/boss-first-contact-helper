@@ -36,3 +36,19 @@
   border: 1px solid #00a6a7;
 }
 #bt-first-contact a { color: #087f80; }
+#bt-first-contact { max-height: calc(100vh - 16px); overflow: auto; }
+#bt-first-contact [hidden] { display: none !important; }
+#bt-first-contact .bt-panel-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  cursor: grab; user-select: none; touch-action: none;
+}
+#bt-first-contact #bt-minimize { width: auto; padding: 4px 9px; flex-shrink: 0; }
+#bt-first-contact.bt-collapsed {
+  width: auto; padding: 0; border: 0; background: transparent; box-shadow: none;
+}
+#bt-first-contact #bt-mini {
+  width: auto; padding: 11px 15px; border-radius: 24px;
+  box-shadow: 0 4px 16px rgba(25, 35, 45, .22);
+  user-select: none; touch-action: none; cursor: grab;
+}
+#bt-first-contact button:focus-visible { outline: 3px solid #235dd3; outline-offset: 2px; }

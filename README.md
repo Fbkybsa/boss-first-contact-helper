@@ -124,6 +124,10 @@ Windows 上也可以双击 `start.bat`。如果终端不识别 `python`，可以
 
 ## 手动发送与遗漏补发
 
+### 收起和移动面板
+
+大面板右上角点击“收起”会变成“沟通助手”小按钮，点击小按钮可展开。大面板拖动标题栏移动，小按钮拖动自身移动；拖动不会误触展开，位置和展开状态在刷新后恢复。窗口缩小时会重新限制在可见范围内。收起只隐藏界面，自动监听和已开始的发送仍继续按原规则运行。
+
 在电脑消息页打开目标会话，核对收件人后，可使用右上角面板：
 
 | 按钮 | 适用场景 |
@@ -244,6 +248,7 @@ python tools/check_release_privacy.py --worktree
 
 ```powershell
 node --test tests/first_contact.test.js tests/background_minimal.test.js tests/stay_on_page.test.js tests/stay_on_page_dom.test.js tests/job_snapshot.test.js
+node --test tests/floating_panel.test.js
 python tests/smoke.py
 ```
 

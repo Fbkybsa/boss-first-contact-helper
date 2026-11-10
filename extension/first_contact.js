@@ -6,7 +6,12 @@
 
   const panel = document.createElement("section");
   panel.id = "bt-first-contact";
-  panel.innerHTML = `<strong>首次接触 · 自动沟通</strong>
+  panel.innerHTML = `<div class="bt-panel-header" title="拖动标题栏可移动面板">
+    <strong>首次接触 · 自动沟通</strong>
+    <button id="bt-minimize" type="button" aria-label="收起沟通面板" aria-controls="bt-panel-body">收起</button>
+    </div>
+    <button id="bt-mini" type="button" hidden aria-label="展开沟通面板" aria-controls="bt-panel-body" aria-expanded="false" title="点击展开；拖动可移动">沟通助手</button>
+    <div id="bt-panel-body">
     <p id="bt-target">请打开你刚打招呼的会话</p>
     <div class="bt-actions">
       <button id="bt-send" type="button">发送图片和文字</button>
@@ -16,8 +21,9 @@
       </div>
     </div>
     <p id="bt-status" role="status">自动处理新会话；三个手动按钮均可针对当前会话使用。</p>
-    <a href="http://127.0.0.1:8787/first-contact-settings.html" target="_blank" rel="noopener noreferrer">配置图片和话术</a>`;
+    <a href="http://127.0.0.1:8787/first-contact-settings.html" target="_blank" rel="noopener noreferrer">配置图片和话术</a></div>`;
   document.body.appendChild(panel);
+  globalThis.BTFloatingPanel?.mount(panel);
   const button = panel.querySelector("#bt-send");
   const imageButton = panel.querySelector("#bt-send-image");
   const textButton = panel.querySelector("#bt-send-text");

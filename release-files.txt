@@ -1,4 +1,10 @@
 # Reviewed source files only. Adding a path requires manual privacy review.
+extension/floating_panel.js
+tests/floating_panel.test.js
+openspec/changes/movable-contact-panel/proposal.md
+openspec/changes/movable-contact-panel/design.md
+openspec/changes/movable-contact-panel/specs/contact-panel/spec.md
+openspec/changes/movable-contact-panel/tasks.md
 .gitattributes
 .githooks/pre-commit
 .githooks/pre-push
