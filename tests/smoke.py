@@ -271,11 +271,17 @@ check("已沟通计入投递统计", chat_stats["period_activity"]["conversation
 
 print("== 13. 图片与文字配置 ==")
 code, private_settings = call("PATCH", "/api/settings", {"advantage_message": "测试用个人优势占位文本。"})
-check("只返回图片与文字配置", code == 200 and set(private_settings) == {"advantage_message", "resume"})
+check("只返回图片与文字配置", code == 200 and set(private_settings) == {"advantage_message", "advantage_messages", "resume"})
 code, invalid_settings = call("PATCH", "/api/settings", {"unknown_option": "not-supported"})
 check("拒绝发布版以外的配置字段", code == 400)
 code, missing_endpoint = call("POST", "/api/match", {"job": {}})
 check("未验证接口不对外提供", code == 404)
+code, ordered = call("PATCH", "/api/settings", {"advantage_messages": ["测试甲", "测试乙", "测试丙"]})
+check("多段话术按顺序保存并返回", code == 200 and ordered["advantage_messages"] == ["测试甲", "测试乙", "测试丙"])
+code, rejected = call("PATCH", "/api/settings", {"advantage_messages": ["测试"] * 4})
+check("超过三段时API拒绝且不覆盖配置", code == 400)
+code, retained = call("GET", "/api/settings")
+check("非法更新后旧多段仍存在", retained["advantage_messages"] == ["测试甲", "测试乙", "测试丙"])
 one_pixel_png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 code, upload = call("POST", "/api/settings/resume", {
     "filename": "我的简历.png", "data_url": "data:image/png;base64," + one_pixel_png,

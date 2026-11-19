@@ -11,7 +11,7 @@ _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _DEFAULT_SETTINGS = _ROOT / "db" / "private-settings.json"
 _DEFAULT_RESUME_DIR = _ROOT / "db" / "private"
 
-DEFAULTS = {"advantage_message": "", "resume": {}}
+DEFAULTS = {"advantage_message": "", "advantage_messages": [], "resume": {}}
 
 
 def _settings_path() -> pathlib.Path:
@@ -35,13 +35,44 @@ def load() -> dict:
     return {key: data.get(key, value) for key, value in DEFAULTS.items()}
 
 
+def configured_messages(cfg):
+    raw = cfg.get("advantage_messages")
+    if raw is None or raw == []:
+        legacy = str(cfg.get("advantage_message") or "").strip()
+        return [legacy] if legacy else []
+    return validate_messages(raw)
+
+
+def validate_messages(raw):
+    if not isinstance(raw, list) or not 1 <= len(raw) <= 3:
+        raise ValueError("话术必须为 1 到 3 段文字")
+    if any(not isinstance(text, str) or not text.strip() or len(text.strip()) > 300 for text in raw):
+        raise ValueError("每段话术不能为空且最多 300 字符")
+    return [text.strip() for text in raw]
+
+
+def update_messages(cfg, values):
+    if "advantage_messages" in values:
+        texts = validate_messages(values["advantage_messages"])
+    elif "advantage_message" in values:
+        first = str(values.get("advantage_message") or "").strip()
+        if len(first) > 300:
+            raise ValueError("个人优势话术最多 300 字")
+        texts = ([first] if first else []) + configured_messages(cfg)[1:]
+    else:
+        texts = configured_messages(cfg)
+    cfg["advantage_messages"] = texts
+    cfg["advantage_message"] = texts[0] if texts else ""
+
+
 def public() -> dict:
     cfg = load()
     resume = dict(cfg.get("resume") or {})
     path = resume.get("path")
     exists = bool(path and pathlib.Path(path).is_file())
     return {
-        "advantage_message": cfg.get("advantage_message", ""),
+        "advantage_message": (configured_messages(cfg) or [""])[0],
+        "advantage_messages": configured_messages(cfg),
         "resume": {
             "exists": exists,
             "name": resume.get("name", "") if exists else "",
@@ -52,13 +83,10 @@ def public() -> dict:
 
 
 def update(values: dict) -> dict:
-    if set(values) - {"advantage_message"}:
+    if set(values) - {"advantage_message", "advantage_messages"}:
         raise ValueError("设置仅支持个人优势话术")
     cfg = load()
-    if "advantage_message" in values:
-        cfg["advantage_message"] = str(values.get("advantage_message") or "").strip()
-    if len(cfg["advantage_message"]) > 300:
-        raise ValueError("个人优势话术最多 300 字")
+    update_messages(cfg, values)
     _write(cfg)
     return public()
 

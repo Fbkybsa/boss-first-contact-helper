@@ -9,13 +9,18 @@
 <body>
   <main>
     <h1>首次接触一键沟通设置</h1>
-    <p>配置消息页要发送的两项内容。你仍在 BOSS 页面手动筛选岗位、打招呼并打开会话。</p>
+    <p>配置简历图片及最多 3 段文字，按下方顺序逐条发送。你仍在 BOSS 页面手动筛选岗位、打招呼并打开会话。</p>
     <form id="settings-form">
       <label for="resume">简历图片（JPG 或 PNG，不超过 8 MB）</label>
       <input id="resume" type="file" accept="image/jpeg,image/png">
       <small id="resume-status">正在读取现有图片…</small>
-      <label for="message">图片后的话术</label>
+      <label for="message">文字 1（必填，每段最多 300 字符）</label>
       <textarea id="message" rows="6" maxlength="300" required placeholder="简历图片确认发送后，自动发送这段文字"></textarea>
+      <label for="message-2">文字 2（选填）</label>
+      <textarea id="message-2" rows="4" maxlength="300" placeholder="不填写则跳过"></textarea>
+      <label for="message-3">文字 3（选填）</label>
+      <textarea id="message-3" rows="4" maxlength="300" placeholder="不填写则跳过"></textarea>
+      <small>图片 → 文字 1 → 文字 2 → 文字 3。相邻消息确认后至少间隔 0.5 秒。仅发文字也会从第一段开始发送整组，补发前请检查已发送的内容。</small>
       <button type="submit">保存</button>
     </form>
     <p id="status" role="status"></p>

@@ -43,7 +43,7 @@
 - Python 3.9 或更新版本，以及 Chrome 或 Edge 浏览器。
 - 已登录的 BOSS 直聘账号；手机配合电脑使用时，两端必须是同一个账号。
 - 一张 JPG/PNG 格式的图片简历，大小不超过 8 MB。
-- 一段准备发给 HR 的个人优势文字，最多 300 字符。
+- 1–3 段准备发给 HR 的文字，每段最多 300 字符，按设置顺序发送。
 
 **先在 BOSS 的“消息通知—设置招呼语”等对应设置入口中开启打招呼语，建议内容设为“您好”。** 设置入口可能随平台版本调整，以实际界面为准。第一条招呼用于建立会话并同步到消息列表，工具再从电脑消息页接着处理；关闭招呼语可能导致新会话无法按预期出现。
 
@@ -123,6 +123,14 @@ Windows 上也可以双击 `start.bat`。如果终端不识别 `python`，可以
 手机模式无需另外打开电脑岗位页。由于扩展没有读取手机上的岗位页面，也没有收到电脑网页沟通成功弹窗，**此模式不保证保存完整 JD 快照**。自动补发与网页岗位快照是两项独立功能。
 
 ## 手动发送与遗漏补发
+
+### 图片后按顺序发送多段文字
+
+从 0.7.11 起，设置页提供文字 1、2、3，第一段必填，后两段选填，每段最多 300 字符。按输入框从上到下的顺序发送，空的可选框跳过；可以把希望 HR 在会话预览里优先看到的个人优势放在最后一段。
+
+发送顺序为：**图片 → 文字 1 → 文字 2 → 文字 3**。确认每条消息后至少等待 0.5 秒再发下一条。旧单段话术自动放入第一框。某段未确认时停止后续内容，并提示已确认数量，不自动重试。
+
+“仅发文字”会从第一段发送当前整组，不会自动从失败处续发。补发前请检查实际消息流，并将设置调整为确实需要补发的内容，避免重复。
 
 ### 收起和移动面板
 
@@ -250,6 +258,8 @@ python tools/check_release_privacy.py --worktree
 node --test tests/first_contact.test.js tests/background_minimal.test.js tests/stay_on_page.test.js tests/stay_on_page_dom.test.js tests/job_snapshot.test.js
 node --test tests/floating_panel.test.js
 python tests/smoke.py
+node --test tests/message_settings_ui.test.js
+python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 这些测试不访问 BOSS 账号，也不发送真实消息。真实页面 HTML 含个人信息，不随仓库提供。`tests/message_page_dom.py` 与 `tests/validate_selectors.py` 是可选的私有样本验证工具；自行准备对应样本到 `docs/samples/`，安装 `beautifulsoup4` 和 `soupsieve` 后才能执行。缺少样本不能视为选择器验证已通过。

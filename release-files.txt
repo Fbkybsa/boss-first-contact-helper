@@ -1,4 +1,10 @@
 # Reviewed source files only. Adding a path requires manual privacy review.
+tests/test_message_settings.py
+tests/message_settings_ui.test.js
+openspec/changes/ordered-contact-messages/proposal.md
+openspec/changes/ordered-contact-messages/design.md
+openspec/changes/ordered-contact-messages/specs/first-contact-send/spec.md
+openspec/changes/ordered-contact-messages/tasks.md
 extension/floating_panel.js
 tests/floating_panel.test.js
 openspec/changes/movable-contact-panel/proposal.md

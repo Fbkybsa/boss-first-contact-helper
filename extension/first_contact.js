@@ -135,6 +135,7 @@
 
   async function stage(key, name, details = {}) {
     await chrome.storage.local.set({ [key]: { stage: name, at: Date.now() } });
+    if (name === "text_started") show(`正在发送第 ${details.index}/${details.total} 段文字…`);
     if (name === "image_started") show("正在发送简历图片…");
     if (name === "image_sent") show(details.willSendText ?
       "图片已确认，等待 0.5 秒后发送文字…" : "简历图片已确认发送。");

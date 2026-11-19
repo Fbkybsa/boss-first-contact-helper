@@ -276,7 +276,8 @@ function closeDrawer() {
 async function openSettings() {
   try {
     const s = await api("/api/settings");
-    $("#s-advantage").value = s.advantage_message || "";
+    const texts = s.advantage_messages ?? [s.advantage_message || ""];
+    ["#s-advantage", "#s-advantage-2", "#s-advantage-3"].forEach((id, index) => { $(id).value = texts[index] || ""; });
     $("#s-resume-status").textContent = s.resume?.exists
       ? `当前图片：${s.resume.name}（${Math.max(1, Math.round(s.resume.size / 1024))} KB）`
       : "尚未上传简历图片";
@@ -308,7 +309,7 @@ async function saveSettings(event) {
   button.disabled = true;
   try {
     await api("/api/settings", patchOptions({
-      advantage_message: $("#s-advantage").value,
+      advantage_messages: ["#s-advantage", "#s-advantage-2", "#s-advantage-3"].map(id => $(id).value.trim()).filter(Boolean),
     }));
     const file = $("#s-resume").files[0];
     if (file) {

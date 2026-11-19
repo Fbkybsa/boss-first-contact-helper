@@ -3,6 +3,7 @@
 const form = document.querySelector("#settings-form");
 const fileInput = document.querySelector("#resume");
 const messageInput = document.querySelector("#message");
+const messageInputs = [messageInput, document.querySelector("#message-2"), document.querySelector("#message-3")];
 const resumeStatus = document.querySelector("#resume-status");
 const status = document.querySelector("#status");
 let existingResume = false;
@@ -22,7 +23,8 @@ function show(message, error = false) {
 async function load() {
   try {
     const settings = await request("/api/settings");
-    messageInput.value = settings.advantage_message || "";
+    const texts = settings.advantage_messages ?? [settings.advantage_message || ""];
+    messageInputs.forEach((input, index) => { input.value = texts[index] || ""; });
     const compatible = ["image/jpeg", "image/png"].includes(settings.resume?.mime);
     existingResume = !!settings.resume?.exists && compatible;
     resumeStatus.textContent = existingResume
@@ -45,19 +47,19 @@ function fileDataUrl(file) {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const file = fileInput.files[0];
-  const message = messageInput.value.trim();
-  if (!message) return show("请填写图片后的话术", true);
+  const messages = messageInputs.map(input => input.value.trim()).filter(Boolean);
+  if (!messageInput.value.trim()) return show("请填写图片后的话术", true);
   if (!existingResume && !file) return show("请先选择简历图片", true);
   if (file && (!["image/jpeg", "image/png"].includes(file.type) || file.size > 8 * 1024 * 1024)) {
     return show("简历图片必须是 JPG/PNG 且不超过 8 MB", true);
   }
-  const button = form.querySelector("button");
+  const button = form.querySelector("button[type=submit]");
   button.disabled = true;
   show("正在保存…");
   try {
     await request("/api/settings", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ advantage_message: message }),
+      body: JSON.stringify({ advantage_messages: messages }),
     });
     if (file) {
       await request("/api/settings/resume", {

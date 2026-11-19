@@ -406,3 +406,68 @@ test("手动发送期间切换会话仍然停止", async () => {
   assert.equal(result.ok, false);
   assert.equal(a.calls.includes("sendText"), false);
 });
+
+test("最多三段文字逐段确认后发送，间隔500ms并保留配置顺序", async () => {
+  const a = adapter({ settings: async () => ({ resume: { exists: true }, advantage_messages: ["测试甲", "测试乙", "测试丙"] }) });
+  const sent = [];
+  a.sendText = async text => { sent.push(text); };
+  a.confirmText = async (_anchor, text) => {
+    a.state.current.messages.push({ direction: "self", kind: "text", text, id: "text-" + sent.length });
+    return true;
+  };
+  assert.equal((await run(a)).ok, true);
+  assert.deepEqual(sent, ["测试甲", "测试乙", "测试丙"]);
+  assert.equal(a.calls.filter(c => c === "delay:500").length, 3);
+});
+test("仅发文字发送整组；相同内容的不同段落不被去重", async () => {
+  const a = adapter({ settings: async () => ({ advantage_messages: ["重复测试", "重复测试"] }) });
+  const sent = [];
+  a.sendText = async text => { sent.push(text); };
+  a.confirmText = async (_anchor, text) => {
+    a.state.current.messages.push({ direction: "self", kind: "text", text, id: "t" + sent.length });
+    return true;
+  };
+  assert.equal((await run(a, { mode: "manual", action: "text" })).ok, true);
+  assert.equal(sent.length, 2);
+  assert.equal(a.calls.includes("sendImage"), false);
+  assert.equal(a.calls.filter(c => c === "delay:500").length, 1);
+});
+test("第二段未确认时不发第三段，返回已确认进度", async () => {
+  const a = adapter({ settings: async () => ({ advantage_messages: ["甲", "乙", "丙"] }) });
+  const sent = [];
+  a.sendText = async text => { sent.push(text); };
+  a.confirmText = async (_anchor, text) => {
+    if (sent.length === 2) return false;
+    a.state.current.messages.push({ direction: "self", kind: "text", text, id: "confirmed" });
+    return true;
+  };
+  const r = await run(a, { mode: "manual", action: "text" });
+  assert.equal(r.ok, false); assert.equal(r.textSent, 1); assert.equal(r.textTotal, 3);
+  assert.deepEqual(sent, ["甲", "乙"]); assert.match(r.reason, /可能已发送/);
+});
+test("段落之间切换会话或本人插入消息则停止，对方回复仍可继续", async () => {
+  for (const change of ["switch", "extra", "reply"]) {
+    const a = adapter({ settings: async () => ({ advantage_messages: ["甲", "乙"] }) });
+    const sent = [];
+    a.sendText = async text => { sent.push(text); };
+    a.confirmText = async (_anchor, text) => {
+      a.state.current.messages.push({ direction: "self", kind: "text", text, id: "t" + sent.length });
+      return true;
+    };
+    a.delay = async () => {
+      if (change === "switch") a.state.current.messages[0] = { ...a.state.current.messages[0], id: "other" };
+      else a.state.current.messages.push({ direction: change === "extra" ? "self" : "friend", kind: "text", text: "新消息", id: "new" });
+    };
+    const r = await run(a, { mode: "manual", action: "text" });
+    assert.equal(r.ok, change === "reply");
+    assert.equal(sent.length, change === "reply" ? 2 : 1);
+  }
+});
+test("非法多段配置发送前拒绝；仅发图片不受无效文字配置影响", async () => {
+  for (const texts of [[], ["1", "2", "3", "4"], [" "], [123], ["x".repeat(301)], "not-array"]) {
+    const a = adapter({ settings: async () => ({ resume: { exists: true }, advantage_messages: texts }) });
+    assert.equal((await run(a)).ok, false);
+    assert.equal(a.calls.includes("sendImage"), false);
+    assert.equal((await run(a, { mode: "manual", action: "image" })).ok, true);
+  }
+});

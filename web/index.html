@@ -100,9 +100,16 @@
     <button id="settings-close" class="btn btn-ghost" type="button">关闭</button>
   </div>
   <form id="settings-form" class="d-form settings-form">
-    <label>个人优势话术
+    <label>文字 1（必填）
       <textarea id="s-advantage" rows="5" maxlength="300" placeholder="图片发送成功后发送，最多300字" required></textarea>
     </label>
+    <label>文字 2（选填）
+      <textarea id="s-advantage-2" rows="3" maxlength="300"></textarea>
+    </label>
+    <label>文字 3（选填）
+      <textarea id="s-advantage-3" rows="3" maxlength="300"></textarea>
+    </label>
+    <p>最多 3 段，按文字 1、2、3 的顺序逐条发送；空的可选段落跳过。</p>
     <label>简历图片
       <input id="s-resume" type="file" accept="image/jpeg,image/png">
     </label>

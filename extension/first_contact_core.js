@@ -191,6 +191,19 @@
       .test(String(reason || ""));
   }
 
+  function textSequence(settings) {
+    const raw = settings?.advantage_messages ?? [String(settings?.advantage_message || "").trim()].filter(Boolean);
+    if (!Array.isArray(raw) || raw.length < 1 || raw.length > 3 ||
+        raw.some(text => typeof text !== "string" || !text.trim() || text.trim().length > 300)) {
+      throw new Error("请在本地管理页配置 1 到 3 段话术，每段不能为空且最多 300 字符");
+    }
+    return raw.map(text => text.trim());
+  }
+
+  const ownMessages = snapshot => (snapshot.messages || []).filter(item => item.direction === "self");
+  const sameSent = (before, after) => before.length === after.length &&
+    before.every((item, index) => item.kind === after[index].kind && clean(item.text) === clean(after[index].text));
+
   async function run(adapter, options = {}) {
     const mode = options.mode === "manual" ? "manual" : "auto";
     const requestedAction = ["image", "text"].includes(options.action) ? options.action : "both";
@@ -198,6 +211,8 @@
     const needsImage = action === "both" || action === "image";
     const needsText = action === "both" || action === "text";
     let stage = "检查";
+    let textSent = 0;
+    let textTotal = 0;
     try {
       let initial = await adapter.read();
       let eligibility = mode === "manual" ? assessManual(initial, action) : assess(initial);
@@ -218,8 +233,8 @@
           throw new Error("平台图片控件只接受 JPG/PNG，请重新配置简历图片");
         }
       }
-      const message = String(settings.advantage_message || "").trim();
-      if (needsText && !message) throw new Error("请先在本地管理页配置图片后的话术");
+      const messages = needsText ? textSequence(settings) : [];
+      textTotal = messages.length;
       const image = needsImage ? await adapter.image() : null;
       if (needsImage && !image) throw new Error("无法读取简历图片");
 
@@ -271,19 +286,43 @@
           throw new Error("等待后已发消息不止新增一张图片；图片已发送，话术未发，请核对消息流");
         }
       }
-      await adapter.sendText(message, eligibility.anchor);
-      if (!(await adapter.confirmText(eligibility.anchor, message))) {
-        throw new Error(needsImage ? "图片已发送，但无法确认话术已发送；请检查消息流" :
-          "无法确认话术已发送；请检查消息流");
+      let expected = ownMessages(await assertTarget());
+      for (let index = 0; index < messages.length; index += 1) {
+        if (index > 0) await adapter.delay(500);
+        const current = ownMessages(await assertTarget());
+        if (!sameSent(expected, current)) throw new Error("等待期间出现新的已发消息，已停止后续话术");
+        const message = messages[index];
+        if (messages.length > 1) {
+          stage = `话术 ${index + 1}/${messages.length}`;
+          await adapter.stage(eligibility.attemptKey, "text_started", { index: index + 1, total: messages.length });
+        }
+        if (!sameSent(expected, ownMessages(await assertTarget()))) {
+          throw new Error("发送前出现新的已发消息，已停止后续话术");
+        }
+        await adapter.sendText(message, eligibility.anchor);
+        if (!(await adapter.confirmText(eligibility.anchor, message))) {
+          throw new Error(`第 ${index + 1} 段话术发送结果未确认，可能已发送；请检查消息流，后续段落已停止`);
+        }
+        textSent += 1;
+        if (index < messages.length - 1) {
+          const confirmed = ownMessages(await assertTarget());
+          if (confirmed.length !== expected.length + 1 ||
+              !sameSent(expected, confirmed.slice(0, -1)) ||
+              confirmed.at(-1)?.kind !== "text" || clean(confirmed.at(-1)?.text) !== clean(message)) {
+            throw new Error("已发消息与已确认话术不一致，停止后续段落");
+          }
+          expected = confirmed;
+        }
       }
       await adapter.stage(eligibility.attemptKey, action === "text" ? "text_only_complete" : "complete");
       return { ok: true, stage: "完成", reason: action === "text" ? "个人优势文字已发送" :
         "图片和话术均已发送" };
     } catch (error) {
-      return { ok: false, stage, reason: String(error?.message || error) };
+      return { ok: false, stage, textSent, textTotal,
+        reason: (textSent ? `已确认发送 ${textSent}/${textTotal} 段；` : "") + String(error?.message || error) };
     }
   }
 
   return { extractIdentity, assess, assessManual, sameAnchor, newChatCandidates,
-    confirmOpenedConversation, run };
+    confirmOpenedConversation, textSequence, run };
 });

@@ -18,11 +18,11 @@ class ReleaseScopeTest(unittest.TestCase):
             path = Path(directory) / "settings.json"
             path.write_text(json.dumps({"advantage_message": "测试文字", "legacy_only": "private"}), encoding="utf-8")
             with patch.dict(os.environ, {"TRACKER_SETTINGS": str(path)}):
-                self.assertEqual({"advantage_message", "resume"}, set(settings.load()))
+                self.assertEqual({"advantage_message", "advantage_messages", "resume"}, set(settings.load()))
                 with self.assertRaises(ValueError):
                     settings.update({"unknown_option": "unsupported"})
                 settings.update({"advantage_message": "更新后的测试文字"})
-                self.assertEqual({"advantage_message", "resume"}, set(json.loads(path.read_text(encoding="utf-8"))))
+                self.assertEqual({"advantage_message", "advantage_messages", "resume"}, set(json.loads(path.read_text(encoding="utf-8"))))
 
     def test_fresh_database_only_contains_released_job_fields(self):
         with tempfile.TemporaryDirectory(dir=ROOT / "tests") as directory:
