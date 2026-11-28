@@ -273,18 +273,90 @@ function closeDrawer() {
 
 // ---- 图片与文字设置 -------------------------------------------------------
 
+let settingsResumes = [];
+let settingsPendingFiles = [];
+let settingsResumesUsable = false;
+
+const resumeKey = (file) => [file.name, file.size, file.lastModified].join("\u001f");
+
+function renderSettingsResumes() {
+  $("#s-clear-pending").disabled = settingsPendingFiles.length === 0;
+  $("#s-clear-saved").disabled = settingsResumes.length === 0 && settingsPendingFiles.length === 0;
+  const total = settingsResumes.length + settingsPendingFiles.length;
+  if (!total) {
+    $("#s-resume-status").textContent = "尚未上传简历图片";
+    return;
+  }
+  const items = [
+    ...settingsResumes.map((item, index) => {
+      const missing = item.exists === false;
+      const incompatible = !["image/jpeg", "image/png"].includes(item.mime);
+      return `${index + 1}. ${item.name || "未命名"}${missing ? "（文件缺失）" :
+        incompatible ? "（格式不支持）" : ""}`;
+    }),
+    ...settingsPendingFiles.map((file, index) =>
+      `${settingsResumes.length + index + 1}. ${file.name}（待添加）`),
+  ];
+  $("#s-resume-status").textContent = `共 ${total} 张：${items.join("；")}`;
+}
+
+function addSettingsFiles(files) {
+  let added = 0;
+  for (const file of files) {
+    if (!["image/jpeg", "image/png"].includes(file.type) || file.size > 8 * 1024 * 1024) {
+      toast(`${file.name} 不是 JPG/PNG 或超过 8 MB，已跳过`);
+      continue;
+    }
+    if (settingsResumes.length + settingsPendingFiles.length >= 9) {
+      toast("最多保留 9 张简历图片");
+      break;
+    }
+    if (settingsPendingFiles.some(item => resumeKey(item) === resumeKey(file))) continue;
+    settingsPendingFiles.push(file);
+    added += 1;
+  }
+  renderSettingsResumes();
+  return added;
+}
+
 async function openSettings() {
   try {
     const s = await api("/api/settings");
     const texts = s.advantage_messages ?? [s.advantage_message || ""];
     ["#s-advantage", "#s-advantage-2", "#s-advantage-3"].forEach((id, index) => { $(id).value = texts[index] || ""; });
-    $("#s-resume-status").textContent = s.resume?.exists
-      ? `当前图片：${s.resume.name}（${Math.max(1, Math.round(s.resume.size / 1024))} KB）`
-      : "尚未上传简历图片";
+    settingsResumes = Array.isArray(s.resumes) && s.resumes.length ? s.resumes
+      : s.resume?.exists ? [s.resume] : [];
+    settingsResumesUsable = settingsResumes.length > 0 && settingsResumes.every(item =>
+      item.exists !== false && ["image/jpeg", "image/png"].includes(item.mime));
+    settingsPendingFiles = [];
+    $("#s-resume").value = "";
+    renderSettingsResumes();
     $("#settings-panel").hidden = false;
     $("#settings-mask").hidden = false;
   } catch (err) {
     toast("加载设置失败：" + err.message);
+  }
+}
+
+function clearPendingResumes() {
+  settingsPendingFiles = [];
+  $("#s-resume").value = "";
+  renderSettingsResumes();
+  toast("已清空本次选择");
+}
+
+async function clearSavedResumes() {
+  if (!settingsResumes.length && !settingsPendingFiles.length) return;
+  if (typeof confirm === "function" && !confirm("确定清空已保存的全部简历图片吗？")) return;
+  try {
+    const result = await api("/api/settings/resumes/clear", postOptions({}));
+    settingsResumes = Array.isArray(result.resumes) ? result.resumes : [];
+    settingsPendingFiles = [];
+    $("#s-resume").value = "";
+    renderSettingsResumes();
+    toast("已清空全部简历图片");
+  } catch (err) {
+    toast("清空失败：" + err.message);
   }
 }
 
@@ -306,21 +378,38 @@ async function fileDataUrl(file) {
 async function saveSettings(event) {
   event.preventDefault();
   const button = event.submitter || $("#settings-form button[type=submit]");
+  if ($("#s-resume").files.length) {
+    addSettingsFiles([...$("#s-resume").files]);
+    $("#s-resume").value = "";
+  }
+  const files = settingsPendingFiles.slice();
+  if (!settingsResumesUsable && !files.length) {
+    return toast("请先选择 1–9 张 JPG/PNG 简历图片");
+  }
+  if (settingsResumes.length + files.length > 9) {
+    return toast("最多保留 9 张简历图片");
+  }
+  if (files.some(file => !["image/jpeg", "image/png"].includes(file.type) ||
+      file.size > 8 * 1024 * 1024)) {
+    return toast("每张简历图片必须是 JPG/PNG 且不超过 8 MB");
+  }
   button.disabled = true;
   try {
     await api("/api/settings", patchOptions({
       advantage_messages: ["#s-advantage", "#s-advantage-2", "#s-advantage-3"].map(id => $(id).value.trim()).filter(Boolean),
     }));
-    const file = $("#s-resume").files[0];
-    if (file) {
-      if (file.size > 8 * 1024 * 1024) throw new Error("简历图片需小于 8 MB");
-      await api("/api/settings/resume", postOptions({
-        filename: file.name,
-        data_url: await fileDataUrl(file),
-      }));
+    if (files.length) {
+      const uploads = [];
+      for (const file of files) {
+        uploads.push({ filename: file.name, data_url: await fileDataUrl(file) });
+      }
+      const result = await api("/api/settings/resumes/append", postOptions({ files: uploads }));
+      if (Array.isArray(result.resumes)) settingsResumes = result.resumes;
     }
-    toast("设置已保存");
-    await openSettings();
+    settingsPendingFiles = [];
+    $("#s-resume").value = "";
+    renderSettingsResumes();
+    toast(files.length ? `设置已保存，已添加 ${files.length} 张图片` : "设置已保存");
   } catch (err) {
     toast("保存失败：" + err.message);
   } finally {
@@ -335,6 +424,15 @@ function bindUI() {
   $("#settings-close").addEventListener("click", closeSettings);
   $("#settings-mask").addEventListener("click", closeSettings);
   $("#settings-form").addEventListener("submit", saveSettings);
+  $("#s-resume").addEventListener("change", () => {
+    const selected = [...$("#s-resume").files];
+    $("#s-resume").value = "";
+    if (!selected.length) return;
+    const added = addSettingsFiles(selected);
+    if (added) toast(`已加入 ${added} 张图片，可继续点“选择文件”添加下一张`);
+  });
+  $("#s-clear-pending").addEventListener("click", clearPendingResumes);
+  $("#s-clear-saved").addEventListener("click", clearSavedResumes);
   $("#f-period").addEventListener("change", (e) => applyPeriod(e.target.value));
   for (const [id, key] of FILTER_BINDINGS) {
     const el = document.getElementById(id);

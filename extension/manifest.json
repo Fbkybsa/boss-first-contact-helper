@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BOSS 首次接触自动沟通",
-  "version": "0.7.11",
+  "version": "0.7.12",
   "description": "投递页保存沟通岗位快照并自动留在本页；消息页发现新会话后检查首次接触并发送图片和话术。",
   "permissions": ["storage", "alarms"],
   "host_permissions": ["http://127.0.0.1:8787/*"],

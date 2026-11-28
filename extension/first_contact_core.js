@@ -204,6 +204,30 @@
   const sameSent = (before, after) => before.length === after.length &&
     before.every((item, index) => item.kind === after[index].kind && clean(item.text) === clean(after[index].text));
 
+  const IMAGE_INTERVAL_MS = 500;
+
+  function configuredImages(settings) {
+    const list = Array.isArray(settings?.resumes)
+      ? settings.resumes.filter((item) => item && typeof item === "object")
+      : [];
+    if (list.length) return list;
+    return settings?.resume?.exists ? [settings.resume] : [];
+  }
+
+  async function loadImages(adapter, entries) {
+    if (entries.length === 1 && typeof adapter.images !== "function") {
+      return [await adapter.image()];
+    }
+    if (typeof adapter.images !== "function") {
+      throw new Error("当前扩展版本不支持多张图片，请重新加载扩展");
+    }
+    const images = await adapter.images();
+    if (!Array.isArray(images) || images.length !== entries.length) {
+      throw new Error("读取到的图片数量与设置不一致，请重新配置图片");
+    }
+    return images;
+  }
+
   async function run(adapter, options = {}) {
     const mode = options.mode === "manual" ? "manual" : "auto";
     const requestedAction = ["image", "text"].includes(options.action) ? options.action : "both";
@@ -227,16 +251,21 @@
       if (!eligibility.ok) return { ok: false, stage, reason: eligibility.reason };
 
       const settings = await adapter.settings();
+      const imageEntries = needsImage ? configuredImages(settings) : [];
       if (needsImage) {
-        if (!settings?.resume?.exists) throw new Error("请先在本地管理页配置简历图片");
-        if (settings.resume.mime && !["image/jpeg", "image/png"].includes(settings.resume.mime)) {
+        if (!imageEntries.length) throw new Error("请先在本地管理页配置简历图片");
+        if (imageEntries.some((item) => item.exists === false)) {
+          throw new Error("有简历图片文件缺失，请重新配置图片");
+        }
+        if (imageEntries.some((item) => item.mime &&
+            !["image/jpeg", "image/png"].includes(item.mime))) {
           throw new Error("平台图片控件只接受 JPG/PNG，请重新配置简历图片");
         }
       }
       const messages = needsText ? textSequence(settings) : [];
       textTotal = messages.length;
-      const image = needsImage ? await adapter.image() : null;
-      if (needsImage && !image) throw new Error("无法读取简历图片");
+      const images = needsImage ? await loadImages(adapter, imageEntries) : [];
+      if (needsImage && images.some((image) => !image)) throw new Error("无法读取简历图片");
 
       const assertTarget = async (expectFirst = false) => {
         const current = await adapter.read();
@@ -253,39 +282,49 @@
         throw new Error("这个会话已有一次发送尝试；请检查消息流并手动处理剩余步骤");
       }
 
-      let sentBeforeImage = 0;
+      let sentBeforeImages = 0;
       if (needsImage) {
-        stage = "图片";
-        await adapter.stage(eligibility.attemptKey, "image_started");
-        const beforeImage = await assertTarget(true);
-        sentBeforeImage = beforeImage.messages.filter((item) => item.direction === "self").length;
-        await adapter.sendImage(image, eligibility.anchor, mode);
-        if (!(await adapter.confirmImage(eligibility.anchor))) {
-          throw new Error(action === "image" ? "无法确认图片已发送，请检查消息流" :
-            "无法确认图片已发送；已停止话术发送，请检查消息流");
+        sentBeforeImages = ownMessages(await assertTarget(true)).length;
+        for (let index = 0; index < images.length; index += 1) {
+          const isLast = index === images.length - 1;
+          const beforeSelf = sentBeforeImages + index;
+          stage = images.length > 1 ? `图片 ${index + 1}/${images.length}` : "图片";
+          await adapter.stage(eligibility.attemptKey, "image_started",
+            { index: index + 1, total: images.length });
+          await adapter.sendImage(images[index], eligibility.anchor, mode, index);
+          if (!(await adapter.confirmImage(eligibility.anchor))) {
+            const label = images.length > 1 ? `第 ${index + 1}/${images.length} 张图片` : "图片";
+            throw new Error(action === "image" ? `无法确认${label}已发送，请检查消息流` :
+              `无法确认${label}已发送；已停止话术发送，请检查消息流`);
+          }
+          await adapter.stage(eligibility.attemptKey, "image_sent",
+            { index: index + 1, total: images.length, isLast, willSendText: isLast && needsText });
+          if (!isLast || needsText) {
+            await adapter.delay(IMAGE_INTERVAL_MS);
+            const after = await assertTarget();
+            const sent = ownMessages(after);
+            if (mode === "auto") {
+              const attached = sent.slice(sentBeforeImages);
+              if (after.messages.some((item) => item.direction === "unknown" || item.kind === "unknown") ||
+                  attached.length !== index + 1 ||
+                  attached.some((item) => item.kind !== "image")) {
+                throw new Error(images.length > 1 ?
+                  `等待后会话不再是招呼加 ${index + 1} 张图片；已停止后续发送，请核对消息流` :
+                  "等待后会话不再是招呼加一张图片；图片已发送，话术未发，请核对消息流");
+              }
+            } else if (sent.length !== beforeSelf + 1 || sent.at(-1)?.kind !== "image") {
+              throw new Error("等待后已发消息不止新增一张图片；图片已发送，话术未发，请核对消息流");
+            }
+          }
         }
-        await adapter.stage(eligibility.attemptKey, "image_sent", { willSendText: needsText });
         if (!needsText) {
           await adapter.stage(eligibility.attemptKey, "image_only_complete");
-          return { ok: true, stage: "完成", reason: "简历图片已发送" };
+          return { ok: true, stage: "完成", reason: images.length > 1 ?
+            `${images.length} 张简历图片已发送` : "简历图片已发送" };
         }
       }
 
       stage = "话术";
-      await assertTarget();
-      if (needsImage) {
-        await adapter.delay(500);
-        const afterImage = await assertTarget();
-        const sent = afterImage.messages.filter((item) => item.direction === "self");
-        if (mode === "auto") {
-          if (afterImage.messages.some((item) => item.direction === "unknown" || item.kind === "unknown") ||
-              sent.length !== 2 || sent[0].kind !== "text" || sent[1].kind !== "image") {
-            throw new Error("等待后会话不再是招呼加一张图片；图片已发送，话术未发，请核对消息流");
-          }
-        } else if (sent.length !== sentBeforeImage + 1 || sent.at(-1)?.kind !== "image") {
-          throw new Error("等待后已发消息不止新增一张图片；图片已发送，话术未发，请核对消息流");
-        }
-      }
       let expected = ownMessages(await assertTarget());
       for (let index = 0; index < messages.length; index += 1) {
         if (index > 0) await adapter.delay(500);
@@ -316,7 +355,7 @@
       }
       await adapter.stage(eligibility.attemptKey, action === "text" ? "text_only_complete" : "complete");
       return { ok: true, stage: "完成", reason: action === "text" ? "个人优势文字已发送" :
-        "图片和话术均已发送" };
+        images.length > 1 ? `${images.length} 张简历图片和话术均已发送` : "图片和话术均已发送" };
     } catch (error) {
       return { ok: false, stage, textSent, textTotal,
         reason: (textSent ? `已确认发送 ${textSent}/${textTotal} 段；` : "") + String(error?.message || error) };

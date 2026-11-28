@@ -13,3 +13,6 @@ button:disabled { opacity: .5; cursor: default; }
 #status.error { color: #a52f2f; }
 #status.ok { color: #137f79; }
 @media (max-width: 720px) { main { margin: 16px; padding: 20px; } }
+.resume-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+button.secondary { background: #eef2f5; color: #202a35; border: 1px solid #c9d0d8; }
+button.secondary.danger { color: #a52f2f; }

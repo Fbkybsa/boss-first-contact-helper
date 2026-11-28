@@ -98,6 +98,7 @@ tbody tr:hover { background: #f7f9fd; }
   box-shadow: -6px 0 24px rgba(0, 0, 0, 0.12);
 }
 .settings-form { margin-top: 8px; }
+.settings-resume-tools { display: flex; flex-wrap: wrap; gap: 8px; }
 .settings-form textarea { resize: vertical; }
 .settings-warning {
   margin-top: 12px; padding: 9px 11px; border-left: 3px solid var(--warn);

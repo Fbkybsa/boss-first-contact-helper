@@ -90,3 +90,31 @@ test("岗位快照校验错误直接返回且不进入重试队列", async () =>
   assert.equal(result.queued, false);
   assert.equal(saved.get("bt-contact-snapshot-queue"), undefined);
 });
+
+test("本地代理允许逐张读取多图接口并拒绝越界路径", async () => {
+  let listener;
+  const requested = [];
+  const chrome = { runtime: { onMessage: { addListener(fn) { listener = fn; } } } };
+  const fetch = async (url) => {
+    requested.push(url);
+    return {
+      ok: true,
+      headers: { get() { return "image/png"; } },
+      async arrayBuffer() { return new Uint8Array([137, 80, 78, 71]).buffer; },
+      async json() { return {}; },
+    };
+  };
+  const source = fs.readFileSync(path.join(__dirname, "../extension/background_minimal.js"), "utf8");
+  vm.runInNewContext(source, { chrome, fetch, Promise, Date, setTimeout, JSON, Uint8Array,
+    btoa: (value) => Buffer.from(value, "binary").toString("base64") });
+  const allowed = await new Promise((resolve) => {
+    listener({ type: "tracker:api", path: "/api/resume/1", method: "GET", responseType: "binary" }, {}, resolve);
+  });
+  assert.equal(allowed.ok, true);
+  assert.equal(requested[0], "http://127.0.0.1:8787/api/resume/1");
+  const rejected = await new Promise((resolve) => {
+    listener({ type: "tracker:api", path: "/api/resume/1/extra", method: "GET" }, {}, resolve);
+  });
+  assert.equal(rejected.ok, false);
+  assert.equal(requested.length, 1);
+});
