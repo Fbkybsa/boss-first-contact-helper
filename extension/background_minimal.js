@@ -113,7 +113,9 @@ chrome.runtime.onMessage.addListener((message, _sender, respond) => {
   }
   if (message?.type !== "tracker:api") return;
   const path = String(message.path || "");
-  if (!["/api/settings", "/api/resume"].includes(path) || message.method !== "GET") {
+  const allowedPath = path === "/api/settings" || path === "/api/resume" ||
+    /^\/api\/resume\/\d+$/.test(path);
+  if (!allowedPath || message.method !== "GET") {
     respond({ ok: false, error: "不支持的本地接口" });
     return;
   }

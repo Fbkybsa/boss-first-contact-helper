@@ -99,6 +99,7 @@ code, home = get_raw("/")
 check("管理页包含时间范围切换", code == 200 and 'id="f-period"' in home)
 code, minimal_settings = get_raw("/first-contact-settings.html")
 check("首次接触独立设置页可访问", code == 200 and 'id="message"' in minimal_settings and 'id="resume"' in minimal_settings)
+check("两个设置页均支持多选图片", 'multiple' in minimal_settings and 'id="s-resume"' in home and 'multiple' in home)
 code, sample = call("POST", "/api/sample", {
     "page_url": "https://www.zhipin.com/web/geek/chat",
     "title": "沟通列表/BOSS直聘",
@@ -271,7 +272,7 @@ check("已沟通计入投递统计", chat_stats["period_activity"]["conversation
 
 print("== 13. 图片与文字配置 ==")
 code, private_settings = call("PATCH", "/api/settings", {"advantage_message": "测试用个人优势占位文本。"})
-check("只返回图片与文字配置", code == 200 and set(private_settings) == {"advantage_message", "advantage_messages", "resume"})
+check("只返回图片与文字配置", code == 200 and set(private_settings) == {"advantage_message", "advantage_messages", "resume", "resumes"})
 code, invalid_settings = call("PATCH", "/api/settings", {"unknown_option": "not-supported"})
 check("拒绝发布版以外的配置字段", code == 400)
 code, missing_endpoint = call("POST", "/api/match", {"job": {}})
@@ -289,6 +290,26 @@ code, upload = call("POST", "/api/settings/resume", {
 check("简历图片上传到本地私有目录", code == 200 and upload["resume"]["exists"])
 code, mime, image = get_bytes("/api/resume")
 check("扩展可读取已配置图片", code == 200 and mime == "image/png" and image.startswith(b"\x89PNG"))
+code, uploads = call("POST", "/api/settings/resumes", {
+    "files": [
+        {"filename": "第一张.png", "data_url": "data:image/png;base64," + one_pixel_png},
+        {"filename": "第二张.png", "data_url": "data:image/png;base64," + one_pixel_png},
+    ],
+})
+check("可一次上传并保存多张简历图片", code == 200 and len(uploads["resumes"]) == 2 and
+      uploads["resumes"][0]["exists"] and uploads["resumes"][1]["exists"])
+code_one, mime_one, image_one = get_bytes("/api/resume/0")
+code_two, mime_two, image_two = get_bytes("/api/resume/1")
+check("扩展可逐张读取多张图片", code_one == 200 and code_two == 200 and
+      mime_one == mime_two == "image/png" and
+      image_one.startswith(b"\x89PNG") and image_two.startswith(b"\x89PNG"))
+code, appended = call("POST", "/api/settings/resumes/append", {
+    "files": [{"filename": "第三张.png", "data_url": "data:image/png;base64," + one_pixel_png}],
+})
+check("追加图片不会顶掉已保存的两张", code == 200 and len(appended["resumes"]) == 3 and
+      appended["resumes"][2]["name"] == "第三张.png")
+code, cleared = call("POST", "/api/settings/resumes/clear", {})
+check("可清空全部已保存图片", code == 200 and len(cleared["resumes"]) == 0)
 
 print("== 14. 求职进展历史页 ==")
 code, history = call("POST", "/api/ingest", {

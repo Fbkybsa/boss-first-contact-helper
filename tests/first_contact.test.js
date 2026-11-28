@@ -471,3 +471,102 @@ test("非法多段配置发送前拒绝；仅发图片不受无效文字配置�
     assert.equal((await run(a, { mode: "manual", action: "image" })).ok, true);
   }
 });
+
+test("多张图片按设置顺序逐张确认，每张间隔500ms后发送话术", async () => {
+  const a = adapter({
+    settings: async () => ({
+      resumes: [
+        { exists: true, mime: "image/png", name: "第一张.png" },
+        { exists: true, mime: "image/jpeg", name: "第二张.jpg" },
+      ],
+      advantage_message: "测试文字A",
+    }),
+    images: async () => [{ name: "第一张" }, { name: "第二张" }],
+  });
+  const sentImages = [];
+  a.sendImage = async (file) => { a.calls.push("sendImage"); sentImages.push(file.name); };
+  a.confirmImage = async () => {
+    a.calls.push("confirmImage");
+    const count = a.state.current.messages.filter((item) =>
+      item.direction === "self" && item.kind === "image").length;
+    a.state.current = snapshot([...a.state.current.messages,
+      { direction: "self", kind: "image", text: "", id: `image-${count + 1}` }]);
+    return true;
+  };
+  const result = await run(a);
+  assert.equal(result.ok, true);
+  assert.deepEqual(sentImages, ["第一张", "第二张"]);
+  assert.equal(a.calls.filter((call) => call === "sendImage").length, 2);
+  assert.equal(a.calls.filter((call) => call === "delay:500").length, 2);
+  assert.equal(a.calls.includes("sendText"), true);
+});
+
+test("多张图片中下一张未确认时停止后续图片和文字", async () => {
+  let confirmed = 0;
+  const a = adapter({
+    settings: async () => ({
+      resumes: [
+        { exists: true, mime: "image/png" },
+        { exists: true, mime: "image/png" },
+      ],
+      advantage_message: "测试文字A",
+    }),
+    images: async () => [{}, {}],
+  });
+  a.confirmImage = async () => {
+    a.calls.push("confirmImage");
+    confirmed += 1;
+    if (confirmed === 2) return false;
+    a.state.current = snapshot([...a.state.current.messages,
+      { direction: "self", kind: "image", text: "", id: `image-${confirmed}` }]);
+    return true;
+  };
+  const result = await run(a);
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /第 2\/2 张图片/);
+  assert.equal(a.calls.filter((call) => call === "sendImage").length, 2);
+  assert.equal(a.calls.includes("sendText"), false);
+});
+
+test("仅发多张图片时相邻图片间隔500ms，最后一张后不再等待", async () => {
+  const a = adapter({
+    settings: async () => ({
+      resumes: [
+        { exists: true, mime: "image/png" },
+        { exists: true, mime: "image/png" },
+      ],
+      advantage_message: "",
+    }),
+    images: async () => [{}, {}],
+  });
+  a.confirmImage = async () => {
+    a.calls.push("confirmImage");
+    const count = a.state.current.messages.filter((item) =>
+      item.direction === "self" && item.kind === "image").length;
+    a.state.current = snapshot([...a.state.current.messages,
+      { direction: "self", kind: "image", text: "", id: `image-${count + 1}` }]);
+    return true;
+  };
+  const result = await run(a, { mode: "manual", action: "image" });
+  assert.equal(result.ok, true);
+  assert.equal(result.reason, "2 张简历图片已发送");
+  assert.equal(a.calls.filter((call) => call === "delay:500").length, 1);
+  assert.equal(a.calls.includes("image_only_complete"), true);
+  assert.equal(a.calls.includes("sendText"), false);
+});
+
+test("多张图片配置缺文件或不支持格式时发送前停止", async () => {
+  for (const resumes of [
+    [{ exists: true, mime: "image/png" }, { exists: false, mime: "" }],
+    [{ exists: true, mime: "image/png" }, { exists: true, mime: "image/webp" }],
+  ]) {
+    const a = adapter({
+      settings: async () => ({ resumes, advantage_message: "测试文字A" }),
+      images: async () => [{}, {}],
+    });
+    const result = await run(a);
+    assert.equal(result.ok, false);
+    assert.equal(a.calls.includes("sendImage"), false);
+    assert.equal(a.calls.includes("claim"), false);
+  }
+});

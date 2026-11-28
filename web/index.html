@@ -110,11 +110,16 @@
       <textarea id="s-advantage-3" rows="3" maxlength="300"></textarea>
     </label>
     <p>最多 3 段，按文字 1、2、3 的顺序逐条发送；空的可选段落跳过。</p>
-    <label>简历图片
-      <input id="s-resume" type="file" accept="image/jpeg,image/png">
+    <label>简历图片（可多选，最多 9 张；JPG/PNG，单张不超过 8 MB）
+      <input id="s-resume" type="file" accept="image/jpeg,image/png" multiple>
     </label>
     <div id="s-resume-status" class="muted"></div>
-    <div class="settings-warning">请保持 BOSS 的自动打招呼语<b>开启</b>（关闭后会话不会建立，就无法发送消息）。点击"立即沟通"后弹出选择时选<b>"留在当前页"</b>，请提前打开电脑消息页，工具将在消息页依次发送：简历图片 → 个人优势。</div>
+    <div class="settings-resume-tools">
+      <button id="s-clear-pending" type="button" class="btn btn-ghost">撤销本次新选</button>
+      <button id="s-clear-saved" type="button" class="btn btn-ghost">删除全部已保存图片</button>
+    </div>
+    <p class="muted">每次选择会追加到当前图片后面；图片按顺序发送，每张确认后间隔 0.5 秒发送下一张，全部图片发出后再发送个人优势。</p>
+    <div class="settings-warning">请保持 BOSS 的自动打招呼语<b>开启</b>（关闭后会话不会建立，就无法发送消息）。点击"立即沟通"后弹出选择时选<b>"留在当前页"</b>，请提前打开电脑消息页，工具将在消息页依次发送：图片 1 → 图片 2 → … → 个人优势。</div>
     <div class="form-actions">
       <button type="submit" class="btn">保存设置</button>
     </div>

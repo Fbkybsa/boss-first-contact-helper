@@ -11,7 +11,12 @@ _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _DEFAULT_SETTINGS = _ROOT / "db" / "private-settings.json"
 _DEFAULT_RESUME_DIR = _ROOT / "db" / "private"
 
-DEFAULTS = {"advantage_message": "", "advantage_messages": [], "resume": {}}
+MAX_RESUMES = 9
+MAX_RESUME_BYTES = 8 * 1024 * 1024
+MAX_TOTAL_RESUME_BYTES = 40 * 1024 * 1024
+_RESUME_FILE = re.compile(r"resume(?:-\d+)?\.[A-Za-z0-9]+$")
+
+DEFAULTS = {"advantage_message": "", "advantage_messages": [], "resume": {}, "resumes": []}
 
 
 def _settings_path() -> pathlib.Path:
@@ -65,20 +70,36 @@ def update_messages(cfg, values):
     cfg["advantage_message"] = texts[0] if texts else ""
 
 
+def configured_resumes(cfg):
+    raw = cfg.get("resumes")
+    if isinstance(raw, list):
+        items = [item for item in raw if isinstance(item, dict) and item.get("path")]
+        if items:
+            return items
+    legacy = cfg.get("resume")
+    if isinstance(legacy, dict) and legacy.get("path"):
+        return [legacy]
+    return []
+
+
 def public() -> dict:
     cfg = load()
-    resume = dict(cfg.get("resume") or {})
-    path = resume.get("path")
-    exists = bool(path and pathlib.Path(path).is_file())
+    resumes = []
+    for item in configured_resumes(cfg):
+        path = pathlib.Path(str(item.get("path") or ""))
+        exists = bool(path.is_file())
+        resumes.append({
+            "exists": exists,
+            "name": item.get("name", "") if exists else "",
+            "mime": item.get("mime", "") if exists else "",
+            "size": path.stat().st_size if exists else 0,
+        })
+    resume = resumes[0] if resumes else {"exists": False, "name": "", "mime": "", "size": 0}
     return {
         "advantage_message": (configured_messages(cfg) or [""])[0],
         "advantage_messages": configured_messages(cfg),
-        "resume": {
-            "exists": exists,
-            "name": resume.get("name", "") if exists else "",
-            "mime": resume.get("mime", "") if exists else "",
-            "size": pathlib.Path(path).stat().st_size if exists else 0,
-        },
+        "resume": dict(resume),
+        "resumes": resumes,
     }
 
 
@@ -91,44 +112,105 @@ def update(values: dict) -> dict:
     return public()
 
 
-def save_resume(data_url: str, filename: str) -> dict:
-    match = re.fullmatch(r"data:(image/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=\r\n]+)", data_url or "")
+def _decode_image(entry):
+    if not isinstance(entry, dict):
+        raise ValueError("图片数据无效")
+    data_url = str(entry.get("data_url") or "")
+    match = re.fullmatch(r"data:(image/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=\r\n]+)", data_url)
     if not match:
         raise ValueError("只支持 JPG、PNG 或 WebP 图片")
     try:
         raw = base64.b64decode(match.group(2), validate=True)
     except ValueError as exc:
         raise ValueError("图片数据无效") from exc
-    if not raw or len(raw) > 8 * 1024 * 1024:
-        raise ValueError("简历图片需小于 8 MB")
+    if not raw or len(raw) > MAX_RESUME_BYTES:
+        raise ValueError("每张简历图片需小于 8 MB")
+    return match.group(1), raw, str(entry.get("filename") or "")
 
-    mime = match.group(1)
-    suffix = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}[mime]
+
+def _write_resume_items(items) -> list:
+    if not items:
+        raise ValueError("请至少保留一张简历图片")
+    if len(items) > MAX_RESUMES:
+        raise ValueError(f"最多保留 {MAX_RESUMES} 张简历图片")
+    if sum(len(raw) for _mime, raw, _name in items) > MAX_TOTAL_RESUME_BYTES:
+        raise ValueError("简历图片总大小需小于 40 MB")
+
     directory = _resume_dir()
     directory.mkdir(parents=True, exist_ok=True)
-    target = directory / ("resume" + suffix)
-    for old in directory.glob("resume.*"):
-        if old != target and old.is_file():
+    records = []
+    for index, (mime, raw, filename) in enumerate(items, 1):
+        suffix = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}[mime]
+        target = directory / f"resume-{index:02d}{suffix}"
+        _atomic_bytes(target, raw)
+        records.append({
+            "path": str(target.resolve()),
+            "name": _safe_filename(filename, suffix),
+            "mime": mime,
+        })
+    target_paths = {pathlib.Path(item["path"]) for item in records}
+    for old in directory.iterdir():
+        if old.is_file() and _RESUME_FILE.fullmatch(old.name) and old.resolve() not in target_paths:
             old.unlink()
-    _atomic_bytes(target, raw)
 
     cfg = load()
-    cfg["resume"] = {
-        "path": str(target.resolve()),
-        "name": _safe_filename(filename, suffix),
-        "mime": mime,
-    }
+    cfg["resumes"] = records
+    cfg["resume"] = dict(records[0])
     _write(cfg)
+    return public()["resumes"]
+
+
+def save_resumes(files) -> list:
+    if not isinstance(files, list) or not 1 <= len(files) <= MAX_RESUMES:
+        raise ValueError(f"请一次上传 1 到 {MAX_RESUMES} 张简历图片")
+    return _write_resume_items([_decode_image(item) for item in files])
+
+
+def append_resumes(files) -> list:
+    if not isinstance(files, list) or not 1 <= len(files) <= MAX_RESUMES:
+        raise ValueError(f"请一次添加 1 到 {MAX_RESUMES} 张简历图片")
+    existing = []
+    for path, mime, name in resume_files():
+        try:
+            existing.append((mime, path.read_bytes(), name))
+        except OSError as exc:
+            raise ValueError("读取现有简历图片失败，请清空后重新选择") from exc
+    if len(existing) + len(files) > MAX_RESUMES:
+        raise ValueError(f"最多保留 {MAX_RESUMES} 张简历图片，当前已有 {len(existing)} 张")
+    return _write_resume_items(existing + [_decode_image(item) for item in files])
+
+
+def clear_resumes() -> list:
+    directory = _resume_dir()
+    if directory.is_dir():
+        for old in directory.iterdir():
+            if old.is_file() and _RESUME_FILE.fullmatch(old.name):
+                old.unlink()
+    cfg = load()
+    cfg["resumes"] = []
+    cfg["resume"] = {}
+    _write(cfg)
+    return []
+
+
+def save_resume(data_url: str, filename: str) -> dict:
+    save_resumes([{"data_url": data_url, "filename": filename}])
     return public()["resume"]
 
 
+def resume_files():
+    files = []
+    for item in configured_resumes(load()):
+        path = pathlib.Path(str(item.get("path") or ""))
+        if path.is_file():
+            files.append((path, item.get("mime") or "application/octet-stream",
+                          item.get("name") or path.name))
+    return files
+
+
 def resume_file():
-    cfg = load()
-    resume = cfg.get("resume") or {}
-    path = pathlib.Path(str(resume.get("path") or ""))
-    if not path.is_file():
-        return None
-    return path, resume.get("mime") or "application/octet-stream", resume.get("name") or path.name
+    files = resume_files()
+    return files[0] if files else None
 
 
 def _safe_filename(name: str, suffix: str) -> str:

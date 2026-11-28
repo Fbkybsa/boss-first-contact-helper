@@ -142,6 +142,14 @@ class Handler(BaseHTTPRequestHandler):
                         raise _HttpError(404, "尚未配置简历图片")
                     resume_path, mime, _name = resume
                     return self._send(200, resume_path.read_bytes(), content_type=mime)
+                resume_match = re.fullmatch(r"/api/resume/(\d+)", path)
+                if resume_match:
+                    files = settings.resume_files()
+                    index = int(resume_match.group(1))
+                    if index >= len(files):
+                        raise _HttpError(404, "简历图片序号不存在")
+                    resume_path, mime, _name = files[index]
+                    return self._send(200, resume_path.read_bytes(), content_type=mime)
                 if path == "/api/pending":
                     return self._send(200, _pending_events(conn))
                 if path == "/api/export.csv":
@@ -170,6 +178,26 @@ class Handler(BaseHTTPRequestHandler):
                     except ValueError as exc:
                         raise _HttpError(400, str(exc)) from exc
                     return self._send(200, {"ok": True, "resume": resume})
+                if path == "/api/settings/resumes":
+                    p = self._json_body()
+                    try:
+                        resumes = settings.save_resumes(p.get("files", []))
+                    except ValueError as exc:
+                        raise _HttpError(400, str(exc)) from exc
+                    return self._send(200, {"ok": True, "resumes": resumes})
+                if path == "/api/settings/resumes/append":
+                    p = self._json_body()
+                    try:
+                        resumes = settings.append_resumes(p.get("files", []))
+                    except ValueError as exc:
+                        raise _HttpError(400, str(exc)) from exc
+                    return self._send(200, {"ok": True, "resumes": resumes})
+                if path == "/api/settings/resumes/clear":
+                    try:
+                        resumes = settings.clear_resumes()
+                    except ValueError as exc:
+                        raise _HttpError(400, str(exc)) from exc
+                    return self._send(200, {"ok": True, "resumes": resumes})
                 if path == "/api/sample":
                     return self._send(200, _save_sample(self._json_body()))
                 if path == "/api/sync/request":

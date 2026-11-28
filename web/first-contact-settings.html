@@ -9,18 +9,22 @@
 <body>
   <main>
     <h1>首次接触一键沟通设置</h1>
-    <p>配置简历图片及最多 3 段文字，按下方顺序逐条发送。你仍在 BOSS 页面手动筛选岗位、打招呼并打开会话。</p>
+    <p>配置 1–9 张简历图片及最多 3 段文字，按下方顺序逐条发送。你仍在 BOSS 页面手动筛选岗位、打招呼并打开会话。</p>
     <form id="settings-form">
-      <label for="resume">简历图片（JPG 或 PNG，不超过 8 MB）</label>
-      <input id="resume" type="file" accept="image/jpeg,image/png">
+      <label for="resume">简历图片（可一次多选，最多 9 张；JPG/PNG，单张不超过 8 MB）</label>
+      <input id="resume" type="file" accept="image/jpeg,image/png" multiple>
       <small id="resume-status">正在读取现有图片…</small>
+      <div class="resume-tools">
+        <button id="clear-pending" type="button" class="secondary">撤销本次新选</button>
+        <button id="clear-saved" type="button" class="secondary danger">删除全部已保存图片</button>
+      </div>
       <label for="message">文字 1（必填，每段最多 300 字符）</label>
-      <textarea id="message" rows="6" maxlength="300" required placeholder="简历图片确认发送后，自动发送这段文字"></textarea>
+      <textarea id="message" rows="6" maxlength="300" required placeholder="全部简历图片确认发送后，自动发送这段文字"></textarea>
       <label for="message-2">文字 2（选填）</label>
       <textarea id="message-2" rows="4" maxlength="300" placeholder="不填写则跳过"></textarea>
       <label for="message-3">文字 3（选填）</label>
       <textarea id="message-3" rows="4" maxlength="300" placeholder="不填写则跳过"></textarea>
-      <small>图片 → 文字 1 → 文字 2 → 文字 3。相邻消息确认后至少间隔 0.5 秒。仅发文字也会从第一段开始发送整组，补发前请检查已发送的内容。</small>
+      <small>图片 1 → 图片 2 → …（每张确认后间隔 0.5 秒）→ 文字 1 → 文字 2 → 文字 3。仅发文字也会从第一段开始发送整组，补发前请检查已发送的内容。每次选择会追加到已有图片后面；可用“清空本次选择”撤销本次添加，或用“清空已保存图片”重新开始。</small>
       <button type="submit">保存</button>
     </form>
     <p id="status" role="status"></p>

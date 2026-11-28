@@ -136,31 +136,62 @@
   async function stage(key, name, details = {}) {
     await chrome.storage.local.set({ [key]: { stage: name, at: Date.now() } });
     if (name === "text_started") show(`正在发送第 ${details.index}/${details.total} 段文字…`);
-    if (name === "image_started") show("正在发送简历图片…");
-    if (name === "image_sent") show(details.willSendText ?
-      "图片已确认，等待 0.5 秒后发送文字…" : "简历图片已确认发送。");
+    if (name === "image_started") show(details.total > 1 ?
+      `正在发送第 ${details.index}/${details.total} 张图片…` : "正在发送简历图片…");
+    if (name === "image_sent") {
+      if (details.total > 1 && !details.isLast) {
+        show(`第 ${details.index}/${details.total} 张图片已确认，等待 0.5 秒后发送下一张…`);
+      } else if (details.willSendText) {
+        show(details.total > 1 ?
+          `第 ${details.index}/${details.total} 张图片已确认，等待 0.5 秒后发送文字…` :
+          "图片已确认，等待 0.5 秒后发送文字…");
+      } else {
+        show(details.total > 1 ? `已确认 ${details.total} 张简历图片。` : "简历图片已确认发送。");
+      }
+    }
   }
 
-  async function image() {
-    const binary = await api("/api/resume", "binary");
+  function fileFromBinary(binary, name, mime) {
     const raw = atob(binary.data);
     const bytes = Uint8Array.from(raw, (char) => char.charCodeAt(0));
-    const settings = await api("/api/settings");
-    return new File([bytes], settings.resume.name || "resume.jpg", {
-      type: binary.mime || settings.resume.mime || "image/jpeg", lastModified: Date.now(),
+    return new File([bytes], name || "resume.jpg", {
+      type: binary.mime || mime || "image/jpeg", lastModified: Date.now(),
     });
   }
 
+  async function image() {
+    const [binary, settings] = await Promise.all([
+      api("/api/resume", "binary"), api("/api/settings"),
+    ]);
+    return fileFromBinary(binary, settings.resume?.name, settings.resume?.mime);
+  }
+
+  async function images() {
+    const settings = await api("/api/settings");
+    const entries = Array.isArray(settings.resumes) && settings.resumes.length
+      ? settings.resumes
+      : settings.resume?.exists ? [settings.resume] : [];
+    const files = [];
+    for (let index = 0; index < entries.length; index += 1) {
+      const path = entries.length === 1 ? "/api/resume" : `/api/resume/${index}`;
+      const binary = await api(path, "binary");
+      files.push(fileFromBinary(binary, entries[index].name || `resume-${index + 1}.jpg`,
+        entries[index].mime));
+    }
+    return files;
+  }
+
   let beforeImageIds = new Set();
-  async function sendImage(file, anchor, mode) {
+  async function sendImage(file, anchor, mode, index = 0) {
     assertAnchor(anchor);
-    if (mode === "auto" && !core.assess(read()).ok) {
+    if (mode === "auto" && index === 0 && !core.assess(read()).ok) {
       throw new Error("会话不再符合自动发送条件，图片发送已停止");
     }
     const root = document.querySelector(".chat-conversation");
     const input = root?.querySelector('.btn-sendimg input[type="file"]');
     if (!input) throw new Error("图片发送控件已消失");
     beforeImageIds = new Set(ownMessages(root).map((node) => node.getAttribute("data-mid")));
+    try { input.value = ""; } catch (_error) { /* 部分浏览器不允许清空文件框，继续尝试赋值 */ }
     const transfer = new DataTransfer();
     transfer.items.add(file);
     input.files = transfer.files;
@@ -281,7 +312,7 @@
     try {
       if (candidate) await openNewConversation(candidate);
       const result = await core.run({
-        read, settings: () => api("/api/settings"), image, claim, stage,
+        read, settings: () => api("/api/settings"), image, images, claim, stage,
         sendImage, confirmImage, sendText, confirmText,
         delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       }, { mode, action });
